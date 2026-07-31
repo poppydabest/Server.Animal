@@ -92,7 +92,16 @@ wss.on("connection", (ws) => {
       const name = String(msg.name || "Player").slice(0, 20);
       if (!uid) return;
 
-      const code = generateUniqueCode();
+      let code;
+      const requested = String(msg.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+      if (requested) {
+        if (requested.length < 3) { sendTo(ws, { type: "createError", reason: "invalid_code" }); return; }
+        if (rooms.has(requested)) { sendTo(ws, { type: "createError", reason: "code_taken" }); return; }
+        code = requested;
+      } else {
+        code = generateUniqueCode();
+      }
+
       const room = makeRoom(uid);
       rooms.set(code, room);
       room.clients.set(uid, ws);
