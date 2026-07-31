@@ -82,6 +82,13 @@ wss.on("connection", (ws) => {
   let myRoomCode = null;
   let myUid = null;
 
+  // Heartbeat: browsers auto-reply to a ping with a pong at the protocol
+  // level (no client code needed). This keeps the socket active so it
+  // isn't silently dropped for sitting idle in a waiting room, and lets
+  // us clean up connections that have actually gone dead.
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
+
   ws.on("message", (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch (e) { return; }
@@ -188,3 +195,15 @@ wss.on("connection", (ws) => {
 });
 
 console.log("Animal Hospital relay server listening on port " + PORT);
+
+// Every 30s, ping every connected client. If a client didn't respond to the
+// PREVIOUS ping (isAlive still false), it's dead — terminate it so the
+// room's player list stays accurate. Otherwise mark it unanswered and ping
+// again; a live browser will reply with a pong automatically.
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
